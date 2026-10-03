@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "approduct": {
+      "type": "http",
+      "url": "https://dev.approduct.ai/mcp",
+      "headers": {
+        "Authorization": "Bearer ${APPRODUCT_MCP_KEY}"
+      }
+    }
+  }
+}

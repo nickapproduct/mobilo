@@ -1,23 +1,35 @@
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { Body, Button, Screen, Title } from '../lib/ui';
-import { topUp } from '../lib/api';
+import { topUp, type TopUpResult } from '../lib/api';
 import { spacing, theme } from '../theme';
 import type { Nav } from '../navigation';
 
 const AMOUNTS = [5, 10, 20, 50];
 
+const NOT_CHARGED = 'You have not been charged.';
+
+const DECLINED: Record<NonNullable<TopUpResult['declineCode']>, string> = {
+  insufficient_funds: `Your bank declined this payment: not enough funds on the card. ${NOT_CHARGED} Try a smaller amount or another card.`,
+  expired_card: `Your bank declined this payment: the card has expired. ${NOT_CHARGED} Try another card.`,
+  do_not_honour: `Your bank declined this payment. ${NOT_CHARGED} Try another card, or contact your bank.`,
+};
+
 export function TopUpScreen({ navigation }: Nav<'TopUp'>) {
   const [amount, setAmount] = useState(10);
   const [card, setCard] = useState('');
   const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState('');
 
   const pay = async () => {
     setBusy(true);
+    setProblem('');
     const result = await topUp(amount, card);
     setBusy(false);
     if (result.ok) {
       navigation.goBack();
+    } else {
+      setProblem(DECLINED[result.declineCode ?? 'do_not_honour']);
     }
   };
 
@@ -48,6 +60,7 @@ export function TopUpScreen({ navigation }: Nav<'TopUp'>) {
         placeholder="Card number"
         keyboardType="number-pad"
       />
+      {problem ? <Text style={styles.problem}>{problem}</Text> : null}
 
       <Button label={`Pay ${amount} ₾`} onPress={() => void pay()} busy={busy} />
     </Screen>
@@ -78,4 +91,5 @@ const styles = StyleSheet.create({
     color: theme.ink,
     marginTop: spacing(2),
   },
+  problem: { marginTop: spacing(1), color: theme.danger, fontSize: 15 },
 });
