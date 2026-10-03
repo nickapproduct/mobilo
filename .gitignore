@@ -5,3 +5,4 @@ ios/
 dist/
 *.apk
 .DS_Store
+crawl/run_*/
