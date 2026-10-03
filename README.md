@@ -15,6 +15,10 @@ npm run typecheck
 The build to crawl is `android/app/build/outputs/apk/release/app-release.apk`. Submit it the same way
 any other app is submitted.
 
+It has to be the **release** build. A debug APK does not embed the JavaScript — it expects Metro to be
+running on a laptop it can reach, and on a device in a data centre it opens on "Unable to load script".
+Release is signed with the debug keystore, which is fine for something that will never see a store.
+
 Sign in with any number that has nine or more digits; the code is `0000`. A card number ending `00` is
 declined, so the failure path is reachable whenever you want it.
 

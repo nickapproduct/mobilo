@@ -15,6 +15,25 @@ from typing import Any
 from walk import Walk
 
 
+def _visit(walk: Walk, state: str) -> str:
+    """The id of the first visit to a state, which is how a flow step names the frame it shows."""
+    node = next((n for n in walk.nodes if n.state_id == state), None)
+    return node.visits[0].visit_id if node and node.visits else ""
+
+
+def _occurrence(walk: Walk, steps: list[tuple[str, str]]) -> dict[str, Any]:
+    """One walk through a flow: the visits it passed and what each step was doing.
+
+    The importer builds a flow's steps from `occurrences[0].visit_ids`, not from `state_ids` — with an
+    empty list the flow imports with no steps at all and the map has nothing to draw.
+    """
+    pairs = [(_visit(walk, state), caption) for state, caption in steps]
+    return {
+        "visit_ids": [v for v, _ in pairs if v],
+        "captions": [c for v, c in pairs if v],
+    }
+
+
 def _frame(walk: Walk, state: str, hint: str, offending: bool = True) -> dict[str, Any]:
     """The first frame captured at a state, as a step in a finding's flow."""
     node = next((n for n in walk.nodes if n.state_id == state), None)
@@ -202,7 +221,13 @@ def report_for(walk: Walk) -> dict[str, Any]:
             "state_ids": ["welcome_permission", "welcome", "sign_in", "otp", "home"],
             "collects_data": True,
             "finding_numbers": [1, 4, 5],
-            "occurrences": [{"visit_ids": [], "captions": []}],
+            "occurrences": [_occurrence(walk, [
+                ("welcome_permission", "Open the app — the permission dialog is already up"),
+                ("welcome", "Allow, and the welcome screen is underneath"),
+                ("sign_in", "Sign in — the only way in"),
+                ("otp", "Type the number, ask for the code"),
+                ("home", "Enter the code and arrive at the balance"),
+            ])],
         },
         {
             "flow_id": "flow_top_up",
@@ -212,7 +237,13 @@ def report_for(walk: Walk) -> dict[str, Any]:
             "state_ids": ["home", "top_up", "top_up_filled", "top_up_declined", "home_after"],
             "collects_data": True,
             "finding_numbers": [2, 3],
-            "occurrences": [{"visit_ids": [], "captions": []}],
+            "occurrences": [_occurrence(walk, [
+                ("home", "Start at the balance"),
+                ("top_up", "Top up — choose an amount"),
+                ("top_up_filled", "Enter a card the issuer will refuse"),
+                ("top_up_declined", "Pay — and the screen says nothing"),
+                ("home_after", "Back at the balance, unchanged and unexplained"),
+            ])],
         },
     ]
 

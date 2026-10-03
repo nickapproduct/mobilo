@@ -71,10 +71,26 @@ class Walk:
         self.step = 0
         self.last_state: str | None = None
 
-    def capture(self, state: str, note: str = "") -> str:
-        """A frame and the hierarchy behind it, named for the state they belong to."""
+    def on_screen(self) -> list[str]:
+        adb("shell", "uiautomator", "dump", "/sdcard/ui.xml")
+        dump = adb("shell", "cat", "/sdcard/ui.xml")
+        return [m.group(1) for m in re.finditer(r'text="([^"]+)"', dump)]
+
+    def capture(self, state: str, note: str = "", expect: str = "") -> str:
+        """A frame and the hierarchy behind it, named for the state they belong to.
+
+        `expect` is a word that has to be on screen for this to be that state. Without it a walk that
+        did not go where it meant to carries on and files frames under the wrong names — which is how a
+        finding ends up with evidence of something else, and that is worse than no finding at all.
+        """
         self.step += 1
         time.sleep(1.4)  # let the animation finish, or the frame is of the transition
+        if expect:
+            showing = self.on_screen()
+            if not any(expect.lower() in s.lower() for s in showing):
+                raise AssertionError(
+                    f"expected to be on {state!r} (looking for {expect!r}) but the screen shows {showing[:10]}"
+                )
         visit_id = f"v{self.step:02d}"
         shot = f"{state}_{visit_id}.png"
         (self.shots / shot).write_bytes(adb("exec-out", "screencap", "-p", binary=True))
@@ -93,11 +109,11 @@ class Walk:
         self.last_state = state
         return visit_id
 
-    def move(self, to_state: str, action: str, label: str, note: str = "") -> None:
+    def move(self, to_state: str, action: str, label: str, note: str = "", expect: str = "") -> None:
         """Record the tap that got us here, then capture where it landed."""
         src = self.last_state
         began = time.time()
-        visit = self.capture(to_state, note)
+        visit = self.capture(to_state, note, expect)
         if src:
             self.edges.append({
                 "edge_id": f"e{len(self.edges) + 1}",
@@ -112,20 +128,49 @@ class Walk:
             })
 
     def tap_text(self, text: str) -> bool:
-        """Tap whatever carries this text, read off the live hierarchy rather than guessed."""
+        """Tap whatever carries this text, read off the live hierarchy rather than guessed.
+
+        An exact match wins before a partial one, and it has to. The permission dialog puts "Allow" on
+        the button, inside "Don't allow" on the button beside it, and inside "Allow Mobilo to send you
+        notifications?" on the title above both — so the first substring hit in document order is the
+        title, and tapping a title does nothing at all. The walk would then carry on and quietly file a
+        bundle in which the dialog never closed.
+        """
         adb("shell", "uiautomator", "dump", "/sdcard/ui.xml")
         dump = adb("shell", "cat", "/sdcard/ui.xml")
-        for m in re.finditer(r'(?:text|content-desc)="([^"]*)"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', dump):
-            if text.lower() in m.group(1).lower():
-                x = (int(m.group(2)) + int(m.group(4))) // 2
-                y = (int(m.group(3)) + int(m.group(5))) // 2
+        found = [
+            (m.group(1), (int(m.group(2)) + int(m.group(4))) // 2, (int(m.group(3)) + int(m.group(5))) // 2)
+            for m in re.finditer(r'(?:text|content-desc)="([^"]*)"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', dump)
+            if m.group(1).strip()
+        ]
+        want = text.strip().lower()
+        for label, x, y in found:
+            if label.strip().lower() == want:
                 adb("shell", "input", "tap", str(x), str(y))
                 return True
-        print(f"     ! could not find {text!r} on screen")
+        for label, x, y in found:
+            if want in label.lower():
+                print(f"     (tapped {label!r} for {text!r})")
+                adb("shell", "input", "tap", str(x), str(y))
+                return True
+        print(f"     ! could not find {text!r}; on screen: {[l for l, _, _ in found][:8]}")
         return False
 
     def type_text(self, value: str) -> None:
         adb("shell", "input", "text", value.replace(" ", "%s"))
 
     def back(self) -> None:
+        """Leave the screen, keyboard or no keyboard.
+
+        A soft keyboard eats the first back press, so one press after typing into a field dismisses the
+        keyboard and goes nowhere. That is how a walk stays on a screen it believes it has left.
+        """
+        self.hide_keyboard()
         adb("shell", "input", "keyevent", "4")
+        time.sleep(1.2)
+
+    def hide_keyboard(self) -> None:
+        shown = "mInputShown=true" in adb("shell", "dumpsys", "input_method")
+        if shown:
+            adb("shell", "input", "keyevent", "4")
+            time.sleep(0.6)
