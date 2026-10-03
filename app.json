@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "Mobilo",
+    "slug": "mobilo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": { "backgroundColor": "#0B3B8C", "resizeMode": "contain" },
+    "android": {
+      "package": "ai.approduct.mobilo",
+      "versionCode": 1,
+      "adaptiveIcon": { "backgroundColor": "#0B3B8C" }
+    },
+    "ios": { "bundleIdentifier": "ai.approduct.mobilo", "supportsTablet": false },
+    "plugins": ["expo-notifications"]
+  }
+}
